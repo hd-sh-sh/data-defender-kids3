@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>개인정보 보호 카드 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        .jua-font {
+            font-family: 'Jua', sans-serif;
+        }
+        .card {
+            cursor: grab;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            touch-action: none; /* For mobile drag */
+        }
+        .card.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+            transform: scale(1.05) rotate(3deg);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .drop-zone {
+            transition: background-color 0.3s ease-in-out, transform 0.3s ease-in-out, border-color 0.3s ease-in-out;
+            border-style: dashed;
+        }
+        .drop-zone.drag-over {
+            transform: scale(1.02);
+        }
+        #safe-zone.drag-over {
+            background-color: #A7F3D0; /* Lighter green */
+        }
+        #unsafe-zone.drag-over {
+            background-color: #FECACA; /* Lighter red */
+        }
+        .drop-zone.correct {
+            background-color: #A7F3D0;
+            border-color: #10B981;
+            border-style: solid;
+        }
+        .drop-zone.incorrect {
+            background-color: #FECACA;
+            border-color: #EF4444;
+            border-style: solid;
+        }
+    </style>
+</head>
+<body class="bg-sky-100 flex items-center justify-center min-h-screen p-4">
+
+    <div id="game-container" class="w-full max-w-4xl mx-auto h-[90vh] flex flex-col">
+        
+        <!-- 시작 화면 -->
+        <div id="start-screen" class="text-center p-8 bg-white rounded-2xl shadow-xl flex flex-col justify-center items-center h-full">
+            <h1 class="jua-font text-5xl md:text-6xl font-bold text-sky-600 mb-4">개인정보 보호<br>카드 게임!</h1>
+            <p class="text-gray-600 text-lg mb-8">카드를 '안전' 또는 '위험' 영역으로 옮겨서<br>내 소중한 정보를 지키는 방법을 배워봐요!</p>
+            <button id="start-button" class="jua-font w-full max-w-xs bg-sky-500 hover:bg-sky-600 text-white font-bold py-4 px-6 rounded-full text-2xl transition-transform transform hover:scale-105 duration-300 shadow-lg">
+                게임 시작!
+            </button>
+        </div>
+
+        <!-- 게임 진행 화면 -->
+        <div id="game-screen" class="hidden w-full h-full flex-col">
+            <h1 class="jua-font text-3xl font-bold text-center text-sky-700 mb-2">개인정보 보호 OX 퀴즈 게임</h1>
+            <!-- Progress Bar -->
+            <div class="w-full bg-white rounded-full h-6 mb-4 border-2 border-sky-200 shadow-inner">
+                <div id="progress-bar" class="bg-gradient-to-r from-yellow-400 to-orange-500 h-full rounded-full text-center text-white font-bold text-sm transition-all duration-500" style="width: 0%"></div>
+            </div>
+
+            <!-- Game Area -->
+            <div class="flex-grow flex flex-col gap-4">
+                <!-- Question Area -->
+                <div class="h-1/3 flex justify-center items-center py-4">
+                     <!-- Draggable Card -->
+                    <div id="question-card" draggable="true" class="card bg-white w-3/4 max-w-md p-8 rounded-2xl shadow-xl text-center border-4 border-gray-200">
+                        <p id="question-text" class="text-xl md:text-2xl font-bold text-gray-800"></p>
+                    </div>
+                </div>
+
+                <!-- Drop Area -->
+                <div class="h-2/3 flex gap-4">
+                    <!-- Drop Zones -->
+                    <div id="safe-zone" data-zone="safe" class="drop-zone w-1/2 bg-green-200/60 rounded-2xl border-4 border-green-400 flex flex-col justify-center items-center text-green-800">
+                        <span class="jua-font text-5xl">😊</span>
+                        <h2 class="jua-font text-3xl mt-2">안전해요</h2>
+                    </div>
+                    <div id="unsafe-zone" data-zone="unsafe" class="drop-zone w-1/2 bg-red-200/60 rounded-2xl border-4 border-red-400 flex flex-col justify-center items-center text-red-800">
+                        <span class="jua-font text-5xl">😨</span>
+                        <h2 class="jua-font text-3xl mt-2">위험해요</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 결과 화면 -->
+        <div id="result-screen" class="hidden p-6 md:p-8 bg-white rounded-2xl shadow-xl h-full flex flex-col">
+            <h2 class="jua-font text-4xl font-bold text-center text-sky-600 mb-4">게임 결과</h2>
+            <p id="score-text" class="text-center text-3xl jua-font text-gray-700 mb-6"></p>
+            
+            <div class="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 rounded-lg mb-6 flex-grow overflow-y-auto">
+                <h3 class="jua-font text-xl mb-2">꼭 기억해요! 개인정보 보호 수칙</h3>
+                <ul class="list-disc list-inside space-y-2">
+                    <li><strong>함부로 알려주지 않기:</strong> 이름, 나이, 학교, 집 주소, 전화번호는 나를 ओळख는 소중한 정보예요.</li>
+                    <li><strong>사진은 신중하게:</strong> 교복 입은 사진, 집이 보이는 사진은 위험할 수 있어요.</li>
+                    <li><strong>비밀번호는 나만 알기:</strong> 비밀번호는 나만 아는 비밀 열쇠! 부모님 외에는 알려주지 않아요.</li>
+                    <li><strong>낯선 사람과 대화는 조심:</strong> 온라인에서 만난 사람이 개인정보를 물어보면 대답하지 말고 부모님께 꼭 말씀드려요.</li>
+                    <li><strong>이상한 느낌이 들면 바로 알리기:</strong> 조금이라도 이상하거나 무서운 느낌이 들면 즉시 부모님이나 선생님께 알려주세요.</li>
+                </ul>
+            </div>
+
+            <button id="restart-button" class="jua-font w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-6 rounded-full text-2xl transition-transform transform hover:scale-105 duration-300 shadow-lg">
+                다시 풀어보기
+            </button>
+        </div>
+
+    </div>
+
+    <!-- 정답/오답 피드백 모달 -->
+    <div id="feedback-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
+        <div id="feedback-content" class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md text-center transform transition-transform duration-300 scale-95">
+            <h3 id="feedback-title" class="jua-font text-4xl font-bold mb-4"></h3>
+            <p id="feedback-explanation" class="text-gray-700 mb-6 text-lg"></p>
+            <button id="next-button" class="jua-font w-full bg-gray-800 hover:bg-gray-900 text-white font-bold py-3 px-4 rounded-full text-xl transition duration-300">다음 문제로</button>
+        </div>
+    </div>
+
+    <script>
+        const questions = [
+            { text: "내 취미는 독서야.", type: "safe", explanation: "취미, 좋아하는 것 등 일반적인 관심사는 개인을 특정하지 않으므로 안전해요." },
+            { text: "나는 OO초등학교 3학년 1반 이민정이야.", type: "unsafe", explanation: "이름, 학교, 학년, 반 정보가 모두 포함되어 있어 개인정보가 완전히 노출돼요. 매우 위험해요!" },
+            { text: "내가 가장 좋아하는 음식은 떡볶이야.", type: "safe", explanation: "좋아하는 음식은 나를 직접적으로 드러내는 정보가 아니므로 다른 사람에게 알려줘도 괜찮아요." },
+            { text: "(교복을 입고 집 앞에서 찍은 사진을 올려요)", type: "unsafe", explanation: "사진 한 장에 얼굴, 학교(교복), 사는 곳(집)까지 여러 개인정보가 담겨 있어 위험해요." },
+            { text: "나는 서울에 살아.", type: "unsafe", explanation: "'서울'처럼 사는 도시만 알려줘도 나쁜 사람들이 범위를 좁혀 나를 찾아낼 수 있어요. 사는 곳은 알려주지 마세요." },
+            { text: "내 꿈은 멋진 우주비행사야.", type: "safe", explanation: "나의 꿈이나 장래희망은 개인을 식별하는 정보가 아니므로 이야기해도 안전해요." },
+            { text: "내 전화번호는 010-1234-5678이야.", type: "unsafe", explanation: "전화번호는 나에게 직접 연락할 수 있는 매우 중요한 개인정보예요. 절대 알려주면 안 돼요." },
+            { text: "주말에 가족들이랑 공원에 다녀왔어.", type: "safe", explanation: "'언제, 어디'인지 정확히 드러나지 않는 일상적인 이야기는 괜찮아요." },
+            { text: "우리 집 주소는 OO아파트 101동 202호야.", type: "unsafe", explanation: "집 주소는 나의 가장 사적인 공간을 알려주는 정보이므로 매우 위험해요." },
+            { text: "오늘 급식이 정말 맛있었어.", type: "safe", explanation: "학교생활에 대한 나의 생각이나 느낌은 개인정보가 아니므로 안전해요." },
+            { text: "내 생일은 5월 5일이야.", type: "unsafe", explanation: "생년월일은 나이를 알려주고, 다른 웹사이트 가입 정보로도 쓰일 수 있어서 중요한 개인정보예요." },
+            { text: "난 방탄소년단(BTS)을 정말 좋아해!", type: "safe", explanation: "내가 좋아하는 연예인이나 노래는 나를 특정하는 정보가 아니므로 안전해요." },
+            { text: "내 아이디는 'minjeong123'이고, 비밀번호도 'minjeong123'이야.", type: "unsafe", explanation: "아이디와 비밀번호는 나의 온라인 계정을 지키는 열쇠예요. 다른 사람이 알면 내 계정을 마음대로 사용할 수 있어 위험해요." },
+            { text: "나는 강아지를 키우고 이름은 멍멍이야.", type: "safe", explanation: "반려동물에 대한 이야기는 나의 개인정보와 직접적인 관련이 없어 안전해요." },
+            { text: "우리 엄마 이름은 김영희이고, 아빠는 이철수야.", type: "unsafe", explanation: "부모님의 성함도 소중한 가족의 개인정보예요. 함부로 알려주면 안 돼요." },
+            { text: "오늘 본 영화는 정말 감동적이었어.", type: "safe", explanation: "영화에 대한 감상평은 나의 생각일 뿐, 개인을 식별하는 정보가 아니므로 안전해요." }
+        ];
+
+        let shuffledQuestions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+
+        // 화면 요소
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        
+        // 게임 진행 요소
+        const progressBar = document.getElementById('progress-bar');
+        const questionCard = document.getElementById('question-card');
+        const questionText = document.getElementById('question-text');
+        const dropZones = document.querySelectorAll('.drop-zone');
+        const scoreText = document.getElementById('score-text');
+
+        // 피드백 모달 요소
+        const feedbackModal = document.getElementById('feedback-modal');
+        const feedbackContent = document.getElementById('feedback-content');
+        const feedbackTitle = document.getElementById('feedback-title');
+        const feedbackExplanation = document.getElementById('feedback-explanation');
+        const nextButton = document.getElementById('next-button');
+
+        function startGame() {
+            shuffledQuestions = [...questions].sort(() => Math.random() - 0.5);
+            currentQuestionIndex = 0;
+            score = 0;
+            startScreen.classList.add('hidden');
+            resultScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex');
+            displayQuestion();
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex < shuffledQuestions.length) {
+                const question = shuffledQuestions[currentQuestionIndex];
+                questionCard.style.transform = 'translate(0, 0) scale(1)'; // Reset card position
+                questionCard.style.opacity = 1;
+                questionCard.setAttribute('draggable', 'true');
+                
+                setTimeout(() => {
+                    questionText.textContent = question.text;
+                    updateProgressBar();
+                }, 100);
+            } else {
+                showResults();
+            }
+        }
+
+        function updateProgressBar() {
+            const progressPercentage = ((currentQuestionIndex) / shuffledQuestions.length) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+            progressBar.textContent = `${currentQuestionIndex} / ${shuffledQuestions.length}`;
+        }
+        
+        function checkAnswer(userChoice) {
+            questionCard.setAttribute('draggable', 'false'); // Prevent re-dragging
+            const question = shuffledQuestions[currentQuestionIndex];
+            const isCorrect = userChoice === question.type;
+
+            if (isCorrect) {
+                score++;
+                feedbackTitle.textContent = "정답이에요! 👍";
+                feedbackTitle.className = "jua-font text-4xl font-bold mb-4 text-green-500";
+            } else {
+                feedbackTitle.textContent = "틀렸어요! 😢";
+                feedbackTitle.className = "jua-font text-4xl font-bold mb-4 text-red-500";
+            }
+            
+            feedbackExplanation.textContent = question.explanation;
+            feedbackModal.classList.remove('hidden');
+            setTimeout(() => feedbackContent.classList.add('scale-100'), 10); // Animate in
+        }
+        
+        function nextQuestion() {
+            currentQuestionIndex++;
+            dropZones.forEach(zone => zone.classList.remove('correct', 'incorrect'));
+            feedbackContent.classList.remove('scale-100');
+            setTimeout(() => {
+                feedbackModal.classList.add('hidden');
+                displayQuestion();
+            }, 300);
+        }
+
+        function showResults() {
+            updateProgressBar(); // Final update to 100%
+            progressBar.textContent = `${shuffledQuestions.length} / ${shuffledQuestions.length}`;
+            progressBar.style.width = '100%';
+
+            setTimeout(() => {
+                gameScreen.classList.add('hidden');
+                gameScreen.classList.remove('flex');
+                resultScreen.classList.remove('hidden');
+                scoreText.textContent = `총 ${shuffledQuestions.length}개 중 ${score}개를 맞혔어요!`;
+            }, 500);
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        nextButton.addEventListener('click', nextQuestion);
+
+        // Drag and Drop Logic
+        questionCard.addEventListener('dragstart', (e) => {
+            questionCard.classList.add('dragging');
+        });
+
+        questionCard.addEventListener('dragend', () => {
+            questionCard.classList.remove('dragging');
+        });
+
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', e => {
+                e.preventDefault();
+                zone.classList.add('drag-over');
+            });
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('drag-over');
+            });
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                const droppedOnZone = e.currentTarget;
+                const choice = droppedOnZone.dataset.zone;
+                const question = shuffledQuestions[currentQuestionIndex];
+                const isCorrect = choice === question.type;
+
+                // Animate card "absorbing" into the zone before showing result
+                questionCard.style.transition = 'transform 0.4s ease-in, opacity 0.4s ease-in';
+                const cardRect = questionCard.getBoundingClientRect();
+                const zoneRect = droppedOnZone.getBoundingClientRect();
+                const translateX = zoneRect.left + (zoneRect.width / 2) - (cardRect.left + cardRect.width / 2);
+                const translateY = zoneRect.top + (zoneRect.height / 2) - (cardRect.top + cardRect.height / 2);
+                
+                questionCard.style.transform = `translate(${translateX}px, ${translateY}px) scale(0)`;
+                questionCard.style.opacity = 0;
+                
+                // Show correct/incorrect status on the zone after a short delay
+                setTimeout(() => {
+                    if (isCorrect) {
+                        droppedOnZone.classList.add('correct');
+                    } else {
+                        droppedOnZone.classList.add('incorrect');
+                    }
+                }, 100);
+
+                // Show the feedback modal AFTER the animation
+                setTimeout(() => {
+                    checkAnswer(choice);
+                }, 500); // Wait for the absorb animation to finish
+            });
+        });
+    </script>
+</body>
+</html>
+
